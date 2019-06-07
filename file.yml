@@ -1,0 +1,32 @@
+---
+- hosts: knx-nginx-test-01
+  gather_facts: yes
+  become: true
+  become_user: ubuntu
+  vars:
+    - deploy_path: "/data/vertx"
+    - zip_path: "{{ build_files }}"
+
+  tasks:
+    - name: Remove deploy folder
+      file:
+        path: "{{ deploy_path }}"
+        state: absent
+
+    - name: Create deploy folder
+      become: yes
+      become_user: root
+      file:
+        path: "{{ deploy_path }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: 0755
+
+    - name: Copy tar file to server then uncompress
+      unarchive:
+        src: "{{ zip_path }}"
+        dest: "{{ deploy_path }}"
+
+    - name: Restart service
+      shell: sudo systemctl daemon-reload && sudo systemctl restart vertx
