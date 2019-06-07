@@ -1,0 +1,179 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: knx-curator-cms-service
+  namespace: bd
+spec:
+  ports:
+    - port: 3005
+      targetPort: 3005
+      name: http
+  type: NodePort
+  selector:
+    app: knx-curator-cms
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: knx-curator-cms
+  namespace: bd
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: knx-curator-cms
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: knx-curator-cms
+  name: knx-curator-cms
+  namespace: bd
+spec:
+  selector:
+    matchLabels:
+      app: knx-curator-cms
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: knx-curator-cms
+    spec:
+      containers:
+      - image: 940643983093.dkr.ecr.ap-southeast-1.amazonaws.com/knx-curator-cms-staging:1
+        name: knx-curator-cms
+        env:
+        - name: NODE_ENV
+          value: staging 
+        - name: MONGO_URI
+          value: 10.0.203.196
+        ports:
+        - containerPort: 3005
+          protocol: TCP
+        livenessProbe:
+          tcpSocket:
+            port: 3005
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 5
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: "400m"
+            memory: "256Mi"
+      restartPolicy: Always
+---
+### FOR NGINX-REWRITE
+apiVersion: v1
+kind: Service
+metadata:
+  name: knx-curator-cms-nginx-service
+  namespace: bd
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  type: NodePort
+  selector:
+    app: knx-curator-cms-nginx
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: knx-curator-cms-nginx
+  namespace: bd
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: knx-curator-cms-nginx
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 70
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: curator-cms-nginx-config
+  namespace: bd
+data:
+  default: |
+    server {
+      listen 80 default_server;
+      server_name _;
+
+      location /cs/ {
+        proxy_pass http://knx-curator-cms-service.bd:3005/;
+
+        add_header Access-Control-Allow-Origin *;
+        add_header Access-Control-Allow-Credentials true;
+        add_header Access-Control-Allow-Methods 'GET, POST, OPTIONS';
+        proxy_pass_header  oauth_provider;
+        proxy_pass_header  access_token;
+        proxy_pass_header  oauth_uid;
+        proxy_pass_header  access_token_secret;
+        proxy_set_header    Host $http_host;
+        proxy_cache off;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+        proxy_max_temp_file_size 0;
+
+        proxy_connect_timeout       600;
+        proxy_send_timeout          600;
+        proxy_read_timeout          600;
+        send_timeout                600;
+      }
+    }
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: knx-curator-cms-nginx
+  name: knx-curator-cms-nginx
+  namespace: bd
+spec:
+  selector:
+    matchLabels:
+      app: knx-curator-cms-nginx
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: knx-curator-cms-nginx
+    spec:
+      volumes:
+        - name: curator-cms-nginx-config
+          configMap:
+            name: curator-cms-nginx-config
+      containers:
+      - image: nginx
+        name: knx-curator-cms-nginx
+        volumeMounts:
+          - name: curator-cms-nginx-config
+            mountPath: /etc/nginx/conf.d/default.conf
+            subPath: default
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 5
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: "100m"
+            memory: "64Mi"
+      restartPolicy: Always

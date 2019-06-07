@@ -1,0 +1,11 @@
+FROM node:8 AS NPM
+WORKDIR /cache
+COPY package.json .
+RUN npm install
+
+FROM node:8
+WORKDIR /app
+COPY . .
+COPY --from=NPM /cache/node_modules ./node_modules
+EXPOSE 3333
+CMD ["npm", "start"]
