@@ -1,0 +1,38 @@
+#!/usr/bin/env groovy
+pipeline {
+    environment {
+        repo        = "git@bitbucket.org:knorexteam/ta-fast-analytics.git"
+        path        = ""
+        set_path    = "${env.workspace}/" 
+    }
+
+    agent any
+    
+    stages {
+        stage ('Pull') {
+            steps {
+                dir ("code") {
+                    git credentialsId: 'jenkins', url: "${repo}", branch: 'dev'
+            }
+        }
+        }
+
+        stage('Build') {
+            steps {
+                dir ("code/trackerv4-vertx/knx_tracker_vertx") {
+                    sh ("mvn clean compile package")
+                    sh ("tar cvzf /tmp/vertx.tar.gz target")
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                dir ("${ set_path }") {
+                    sh ("ansible-playbook -i gce.py file1.yaml -e build_files=/tmp/vertx.tar.gz")
+                }
+            }
+        }
+
+    }
+}
