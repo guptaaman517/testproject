@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: knx-curator-cron-service
+  name: curator-cron-service
   namespace: bd
 spec:
   ports:
@@ -10,18 +10,18 @@ spec:
       protocol: TCP
   type: NodePort
   selector:
-    app: knx-curator-cron
+    app: curator-cron
 ---
 apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: knx-curator-cron
+  name: curator-cron
   namespace: bd
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: knx-curator-cron
+    name: curator-cron
   minReplicas: 1
   maxReplicas: 2
   targetCPUUtilizationPercentage: 80
@@ -30,23 +30,23 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   labels:
-    app: knx-curator-cron
-  name: knx-curator-cron
+    app: curator-cron
+  name: curator-cron
   namespace: bd
 spec:
   selector:
     matchLabels:
-      app: knx-curator-cron
+      app: curator-cron
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: knx-curator-cron
+        app: curator-cron
     spec:
       containers:
-      - image: 940643983093.dkr.ecr.ap-southeast-1.amazonaws.com/knx-curator-cron-staging:1
-        name: knx-curator-cron
+      - image: 940643983093.dkr.ecr.ap-southeast-1.amazonaws.com/knx-curator-cron-staging:74
+        name: curator-cron
         env:
         - name: NODE_ENV
           value: staging

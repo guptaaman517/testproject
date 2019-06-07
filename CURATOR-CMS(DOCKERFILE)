@@ -1,0 +1,46 @@
+FROM ubuntu:16.04
+MAINTAINER Bryan Nguyen <quy_nguyen@knorex.com>
+MAINTAINER Lam Do <lam.do@knorex.com>
+
+EXPOSE 3005
+
+ARG APP_ENV=staging
+ARG MONGO_URI=host.docker.internal:27017
+
+ENV APP_NODE_ENV=$APP_ENV
+ENV APP_MONGO_URL=$MONGO_URI
+
+RUN apt-get update && \
+    apt-get install -y --force-yes --no-install-recommends\
+    apt-transport-https \
+    curl \
+    ca-certificates \
+    libicu-dev \
+    'libicu[0-9][0-9].*' \
+    lsb-release \
+    python-all \
+    rlwrap \
+    build-essential \
+    graphicsmagick --fix-missing \
+    imagemagick --fix-missing \
+    git
+
+ENV NODE_VERSION 6.15.1
+
+RUN curl -SLO "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz" \
+  && curl -SLO "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt" \
+  && grep " node-v$NODE_VERSION-linux-x64.tar.gz\$" SHASUMS256.txt | sha256sum -c - \
+  && tar -xzf "node-v$NODE_VERSION-linux-x64.tar.gz" -C /usr/local --strip-components=1 \
+  && rm "node-v$NODE_VERSION-linux-x64.tar.gz" SHASUMS256.txt \
+&& ln -s /usr/local/bin/node /usr/local/bin/nodejs
+
+RUN apt-get install -y ruby ruby-dev ruby-bundler && gem install compass
+RUN npm install -g bower && npm install -g grunt-cli
+
+WORKDIR /usr/src/app
+COPY . .
+
+RUN npm install && bower install --allow-root
+RUN grunt build --force
+
+CMD ["npm", "run", "app"]
